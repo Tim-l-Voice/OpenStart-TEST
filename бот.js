@@ -1,35 +1,36 @@
-/* Позволил себе немного юмора в плане использования русского языка.
-В целом, код так должен работать, я полагаю. */
-
 const TelegramBot = require('node-telegram-bot-api');
-const { Pool } = require('pg');
+const { PrismaClient } = require('@prisma/client');
 
-const бот = new TelegramBot('телеграмовскийТокен', {polling: true});
+const bot = new TelegramBot('телеграмовскийТокен', {polling: true});
 
-const pool = new Pool({
-  user: 'пользовательБД',
-  host: 'серверБД',
-  database: 'мояБД',
-  password: 'секретныйПароль',
-  port: 5432,
+const prisma = new PrismaClient();
+
+bot.onText(/\/start/, (message) => {
+  bot.sendMessage(message.chat.id, "Пожалуйста, введите id пользователя.");
 });
 
-бот.onText(/\/start/, (сообщение) => {
-  бот.sendMessage(сообщение.chat.id, "Пожалуйста, введите id пользователя.");
-});
-
-бот.on('message', (сообщение) => {
-  const chatId = сообщение.chat.id;
-  const text = сообщение.text;
+bot.on('message', async (message) => {
+  const chatId = message.chat.id;
+  const text = message.text;
 
   if (!isNaN(text)) {
-    pool.query('SELECT name FROM list1 WHERE id = $1', [text], (ошибка, результаты) => {
-      if (ошибка) {
-        throw ошибка;
+    try {
+      const user = await prisma.list1.findUnique({
+        where: {
+          id: Number(text),
+        },
+      });
+
+      if (user) {
+        bot.sendMessage(chatId, `Имя пользователя: ${user.name}`);
+      } else {
+        bot.sendMessage(chatId, "Пользователь с таким id не найден.");
       }
-      бот.sendMessage(chatId, `Имя пользователя: ${результаты.rows[0].name}`);
-    });
+    } catch (error) {
+      console.error(error);
+      bot.sendMessage(chatId, "Произошла ошибка при обработке вашего запроса.");
+    }
   } else {
-    бот.sendMessage(chatId, "Пожалуйста, введите действительный id пользователя.");
+    bot.sendMessage(chatId, "Пожалуйста, введите действительный id пользователя.");
   }
-})
+});
